@@ -17,3 +17,5 @@ vendor/
 # vi
 *.swp
 *.swo
+
+SOURCE.me
