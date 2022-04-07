@@ -66,44 +66,44 @@ const (
 )
 
 type Employee struct {
-	City                string     `yaml:"city,omitempty"`
-	Name                string     `yaml:"name,omitempty"`
-	Company             string     `yaml:"company,omitempty"`
-	Country             string     `yaml:"country,omitempty"`
-	CountryCode         string     `yaml:"country_code,omitempty"`
-	Department          string     `yaml:"department,omitempty"`
-	Description         string     `yaml:"description,omitempty"`
-	Directs             []Employee `yaml:"directs,omitempty"`
-	DisplayName         string     `yaml:"display_name,omitempty"`
-	Email               string     `yaml:"email,omitempty"`
-	EmailAliases        []string   `yaml:"email_aliases,omitempty"`
-	EmployeeID          string     `yaml:"employee_id,omitempty"`
-	EmployeeType        string     `yaml:"employee_type,omitempty"`
-	FirstName           string     `yaml:"first_name,omitempty"`
-	Info                string     `yaml:"info,omitempty"`
-	Initials            string     `yaml:"initials,omitempty"`
-	IPPhone             string     `yaml:"ip_phone,omitempty"`
-	LastName            string     `yaml:"last_name,omitempty"`
-	Login               string     `yaml:"login,omitempty"`
-	ManagedObjects      []string   `yaml:"managed_objects,omitempty"`
-	Manager             string     `yaml:"manager,omitempty"`
-	MemberOf            []string   `yaml:"member_of,omitempty"`
-	Mobile              string     `yaml:"mobile,omitempty"`
-	MSECoManagedObjects []string   `yaml:"mse_co_managed_objects,omitempty"`
-	NTID                string     `yaml:"ntid,omitempty"`
-	ObjectCategory      string     `yaml:"object_category,omitempty"`
-	ObjectClass         []string   `yaml:"object_class,omitempty"`
-	Pager               string     `yaml:"pager,omitempty"`
-	PostalCode          string     `yaml:"postal_code,omitempty"`
-	PostOfficeBox       string     `yaml:"post_office_box,omitempty"`
-	ProxyAddresses      []string   `yaml:"proxy_addresses,omitempty"`
-	SAMAccountName      string     `yaml:"sam_account_name,omitempty"`
-	SAMAccountType      string     `yaml:"sam_account_type,omitempty"`
-	State               string     `yaml:"state,omitempty"`
-	StreetAddress       string     `yaml:"street_address,omitempty"`
-	TelephoneNumber     string     `yaml:"telephone_number,omitempty"`
-	ThumbnailPhoto      []byte     `yaml:"-"`
-	Title               string     `yaml:"title,omitempty"`
+	City                string      `yaml:"city,omitempty"`
+	Name                string      `yaml:"name,omitempty"`
+	Company             string      `yaml:"company,omitempty"`
+	Country             string      `yaml:"country,omitempty"`
+	CountryCode         string      `yaml:"country_code,omitempty"`
+	Department          string      `yaml:"department,omitempty"`
+	Description         string      `yaml:"description,omitempty"`
+	Directs             []*Employee `yaml:"directs,omitempty"`
+	DisplayName         string      `yaml:"display_name,omitempty"`
+	Email               string      `yaml:"email,omitempty"`
+	EmailAliases        []string    `yaml:"email_aliases,omitempty"`
+	EmployeeID          string      `yaml:"employee_id,omitempty"`
+	EmployeeType        string      `yaml:"employee_type,omitempty"`
+	FirstName           string      `yaml:"first_name,omitempty"`
+	Info                string      `yaml:"info,omitempty"`
+	Initials            string      `yaml:"initials,omitempty"`
+	IPPhone             string      `yaml:"ip_phone,omitempty"`
+	LastName            string      `yaml:"last_name,omitempty"`
+	Login               string      `yaml:"login,omitempty"`
+	ManagedObjects      []string    `yaml:"managed_objects,omitempty"`
+	Manager             string      `yaml:"manager,omitempty"`
+	MemberOf            []string    `yaml:"member_of,omitempty"`
+	Mobile              string      `yaml:"mobile,omitempty"`
+	MSECoManagedObjects []string    `yaml:"mse_co_managed_objects,omitempty"`
+	NTID                string      `yaml:"ntid,omitempty"`
+	ObjectCategory      string      `yaml:"object_category,omitempty"`
+	ObjectClass         []string    `yaml:"object_class,omitempty"`
+	Pager               string      `yaml:"pager,omitempty"`
+	PostalCode          string      `yaml:"postal_code,omitempty"`
+	PostOfficeBox       string      `yaml:"post_office_box,omitempty"`
+	ProxyAddresses      []string    `yaml:"proxy_addresses,omitempty"`
+	SAMAccountName      string      `yaml:"sam_account_name,omitempty"`
+	SAMAccountType      string      `yaml:"sam_account_type,omitempty"`
+	State               string      `yaml:"state,omitempty"`
+	StreetAddress       string      `yaml:"street_address,omitempty"`
+	TelephoneNumber     string      `yaml:"telephone_number,omitempty"`
+	ThumbnailPhoto      []byte      `yaml:"-"`
+	Title               string      `yaml:"title,omitempty"`
 }
 
 type Zapper struct {
@@ -223,15 +223,15 @@ func (z *Zapper) getDN(dn string) (*ldap.Entry, error) {
 	return nil, fmt.Errorf("Too many matching responses.")
 }
 
-func (z *Zapper) WalkTree(dn string) (Employee, error) {
+func (z *Zapper) WalkTree(dn string) (*Employee, error) {
 	return z.processNode(dn, true)
 }
 
-func (z *Zapper) processNode(dn string, directs bool) (Employee, error) {
+func (z *Zapper) processNode(dn string, directs bool) (*Employee, error) {
 	who, err := z.getDN(dn)
 	if err != nil {
 		fmt.Printf("Error: %s\n", dn)
-		return Employee{}, err
+		return nil, err
 	}
 
 	e := Employee{}
@@ -258,7 +258,7 @@ func (z *Zapper) processNode(dn string, directs bool) (Employee, error) {
 					tmp, err := z.processNode(direct, directs)
 					if err != nil {
 						fmt.Printf("Error: %s\n", direct)
-						return Employee{}, err
+						return nil, err
 					}
 
 					e.Directs = append(e.Directs, tmp)
@@ -346,5 +346,5 @@ func (z *Zapper) processNode(dn string, directs bool) (Employee, error) {
 		}
 	}
 
-	return e, nil
+	return &e, nil
 }
