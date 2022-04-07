@@ -19,3 +19,7 @@ vendor/
 *.swo
 
 SOURCE.me
+*.yml
+*.yaml
+
+ldap-walker
