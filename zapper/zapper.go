@@ -106,6 +106,58 @@ type Employee struct {
 	Title               string      `yaml:"title,omitempty"`
 }
 
+func (e *Employee) FindByEmail(email string) *Employee {
+	if nil == e {
+		return nil
+	}
+	// Normalize to all lowercase once
+	return e.findByEmail(strings.ToLower(email))
+}
+
+func (e *Employee) findByEmail(email string) *Employee {
+	if e.Email == email {
+		return e
+	}
+
+	for _, alias := range e.EmailAliases {
+		if email == alias {
+			return e
+		}
+	}
+
+	for _, directs := range e.Directs {
+		found := directs.findByEmail(email)
+		if found != nil {
+			return found
+		}
+	}
+
+	return nil
+}
+
+func (e *Employee) FindByNTID(ntid string) *Employee {
+	if nil == e {
+		return nil
+	}
+	// Normalize to all lowercase once
+	return e.findByNTID(strings.ToLower(ntid))
+}
+
+func (e *Employee) findByNTID(ntid string) *Employee {
+	if e.NTID == ntid {
+		return e
+	}
+
+	for _, directs := range e.Directs {
+		found := directs.findByNTID(ntid)
+		if found != nil {
+			return found
+		}
+	}
+
+	return nil
+}
+
 type Zapper struct {
 	BaseDN     string //"DC=example,dc=com",
 	User       string
@@ -296,7 +348,9 @@ func (z *Zapper) processNode(dn string, directs bool) (*Employee, error) {
 		case AttrLastName:
 			e.LastName = attribute.Values[0]
 		case AttrMailNickname:
-			e.EmailAliases = attribute.Values
+			for _, alias := range attribute.Values {
+				e.EmailAliases = append(e.EmailAliases, strings.ToLower(alias))
+			}
 		case AttrManagedObjects:
 			e.ManagedObjects = attribute.Values
 		case AttrManager:
@@ -320,7 +374,10 @@ func (z *Zapper) processNode(dn string, directs bool) (*Employee, error) {
 		case AttrProxyAddresses:
 			e.ProxyAddresses = attribute.Values
 		case AttrSAMAccountName:
-			e.NTID = attribute.Values[0]
+			// Generally the NTID is case insensitive so make it lowercase
+			e.NTID = strings.ToLower(attribute.Values[0])
+
+			// Leave this value to match the original in case it's important
 			e.SAMAccountName = attribute.Values[0]
 		case AttrSAMAccountType:
 			e.SAMAccountType = attribute.Values[0]
