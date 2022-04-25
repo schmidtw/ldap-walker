@@ -21,9 +21,34 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/kr/pretty"
 	"github.com/schmidtw/ldap-walker/zapper"
-	"gopkg.in/yaml.v2"
 )
+
+type Mgr struct {
+	Person string `ldap:"sAMAccountName"`
+}
+
+type Mgr2 struct {
+	Person string
+}
+
+type Foo struct {
+	Person string `ldap:"sAMAccountName"`
+	Other  string
+	//Dogs   string `ldap:"dogs"`
+	//DirectDNs []string `ldap:"directReports"`
+	//ManagerDN string `ldap:"manager"`
+	//Manager   Mgr    `ldap:"manager"`
+	//Manager1  *Foo   `ldap:"manager"`
+	//Managers  []Foo  `ldap:"manager"`
+	//Managers1 []*Foo `ldap:"manager"`
+	//Managers2 [1]*Foo `ldap:"manager"`
+	//Managers3 [0]Mgr  `ldap:"manager"`
+	//Managers4 [0]Mgr2 `ldap:"manager"`
+	Directs  []Foo `ldap:"directReports"`
+	Directs1 []Mgr `ldap:"directReports"`
+}
 
 func main() {
 
@@ -40,16 +65,18 @@ func main() {
 		Hostname: os.Getenv("ZAPPER_HOSTNAME"),
 		Port:     port,
 		// Generally, keep this list small to speed things up for larger trees
-		Attributes: []string{
-			zapper.AttrDirectReports, // Needed to walk the tree
-			zapper.AttrDisplayName,   // Everything else is really optional
-			zapper.AttrTitle,
-			zapper.AttrNTID,
-			zapper.AttrEmployeeType,
-			zapper.AttrEmail,
-			zapper.AttrMailNickname,
-			zapper.AttrUserPrincipalName,
-		},
+		/*
+			Attributes: []string{
+				zapper.AttrDirectReports, // Needed to walk the tree
+				zapper.AttrDisplayName,   // Everything else is really optional
+				zapper.AttrTitle,
+				zapper.AttrNTID,
+				zapper.AttrEmployeeType,
+				zapper.AttrEmail,
+				zapper.AttrMailNickname,
+				zapper.AttrUserPrincipalName,
+			},
+		*/
 	}
 
 	err = z.Connect()
@@ -72,24 +99,37 @@ func main() {
 		return
 	}
 
-	emp, err := z.WalkTree(who)
+	f := Foo{}
+	err = z.Populate(who, 4, &f)
 	if err != nil {
 		panic(err)
 	}
 
-	d, err := yaml.Marshal(&emp)
-	if err != nil {
-		panic(err)
-	}
-
-	if 2 < len(os.Args) {
-		file, err := os.Create(os.Args[2])
+	fmt.Printf("\n\nFoo:\n")
+	pretty.Print(f)
+	fmt.Printf("\n\n")
+	/*
+		emp, err := z.WalkTree(who)
 		if err != nil {
 			panic(err)
 		}
-		defer file.Close()
-		file.Write(d)
-	} else {
-		fmt.Printf("%s\n", string(d))
-	}
+
+		emp.Directs = []*zapper.Employee{}
+
+		d, err := yaml.Marshal(&emp)
+		if err != nil {
+			panic(err)
+		}
+
+		if 2 < len(os.Args) {
+			file, err := os.Create(os.Args[2])
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			file.Write(d)
+		} else {
+			fmt.Printf("%s\n", string(d))
+		}
+	*/
 }
