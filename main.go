@@ -17,6 +17,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strconv"
@@ -34,20 +35,21 @@ type Mgr2 struct {
 }
 
 type Foo struct {
-	Person string `ldap:"sAMAccountName"`
+	Person [1]string `ldap:"sAMAccountName"`
 	Other  string
 	//Dogs   string `ldap:"dogs"`
 	//DirectDNs []string `ldap:"directReports"`
-	//ManagerDN string `ldap:"manager"`
-	//Manager   Mgr    `ldap:"manager"`
-	//Manager1  *Foo   `ldap:"manager"`
-	//Managers  []Foo  `ldap:"manager"`
-	//Managers1 []*Foo `ldap:"manager"`
-	//Managers2 [1]*Foo `ldap:"manager"`
-	//Managers3 [0]Mgr  `ldap:"manager"`
-	//Managers4 [0]Mgr2 `ldap:"manager"`
-	Directs  []Foo `ldap:"directReports"`
-	Directs1 []Mgr `ldap:"directReports"`
+	ManagerDN string   `ldap:"manager"`
+	Manager   Mgr      `ldap:"manager"`
+	Manager1  *Foo     `ldap:"manager"`
+	Managers  []Foo    `ldap:"manager"`
+	Managers1 []*Foo   `ldap:"manager"`
+	Managers2 [1]*Foo  `ldap:"manager"`
+	Managers3 [1]Mgr   `ldap:"manager"`
+	Managers4 [0]Mgr2  `ldap:"manager"`
+	Keys      []string `ldap:"?"`
+	//Directs  []Foo `ldap:"directReports"`
+	//Directs1 []Mgr `ldap:"directReports"`
 }
 
 func main() {
@@ -64,6 +66,9 @@ func main() {
 		Password: os.Getenv("ZAPPER_PASSWORD"),
 		Hostname: os.Getenv("ZAPPER_HOSTNAME"),
 		Port:     port,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 		// Generally, keep this list small to speed things up for larger trees
 		/*
 			Attributes: []string{
@@ -98,6 +103,9 @@ func main() {
 		fmt.Printf("User not found.")
 		return
 	}
+
+	person, err := z.SeeFull(who)
+	pretty.Print(person)
 
 	f := Foo{}
 	err = z.Populate(who, 4, &f)

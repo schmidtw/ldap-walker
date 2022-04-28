@@ -20,155 +20,40 @@ import (
 	"crypto/tls"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 )
 
 const (
-	AttrCity                     = "l"
-	AttrCommonName               = "cn"
-	AttrCompany                  = "company"
-	AttrCountry                  = "co"
-	AttrCountryCode              = "c"
-	AttrDepartment               = "department"
-	AttrDescription              = "description"
-	AttrDirectReports            = "directReports"
-	AttrDisplayName              = "displayName"
-	AttrEmail                    = "mail"
-	AttrEmployeeID               = "employeeId"
-	AttrEmployeeType             = "employeeType"
-	AttrGivenName                = "givenName"
-	AttrInfo                     = "info"
-	AttrInitials                 = "initials"
-	AttrIPPhone                  = "ipPhone"
-	AttrLastName                 = "sn"
-	AttrMailNickname             = "mailNickname"
-	AttrManagedObjects           = "managedObjects"
-	AttrManager                  = "manager"
-	AttrMemberOf                 = "memberOf"
-	AttrMobile                   = "mobile"
-	AttrMsExchCoManagedObjectsBL = "msExchCoManagedObjectsBL"
-	AttrNTID                     = "sAMAccountName"
-	AttrObjectCategory           = "objectCategory"
-	AttrObjectClass              = "objectClass"
-	AttrPager                    = "pager"
-	AttrPostalCode               = "postalCode"
-	AttrPostOfficeBox            = "postOfficeBox"
-	AttrProxyAddresses           = "proxyAddresses"
-	AttrSAMAccountName           = "sAMAccountName"
-	AttrSAMAccountType           = "sAMAccountType"
-	AttrState                    = "st"
-	AttrStreetAddress            = "streetAddress"
-	AttrTelephoneNumber          = "telephoneNumber"
-	AttrThumbnailPhoto           = "thumbnailPhoto"
-	AttrTitle                    = "title"
-	AttrUserPrincipalName        = "userPrincipalName"
+	attrDirectReports = "directReports"
+	attrManager       = "manager"
 )
 
-type Employee struct {
-	City                string              `yaml:"city,omitempty"`
-	Name                string              `yaml:"name,omitempty"`
-	Company             string              `yaml:"company,omitempty"`
-	Country             string              `yaml:"country,omitempty"`
-	CountryCode         string              `yaml:"country_code,omitempty"`
-	Department          string              `yaml:"department,omitempty"`
-	Description         string              `yaml:"description,omitempty"`
-	Directs             []*Employee         `yaml:"directs,omitempty"`
-	DisplayName         string              `yaml:"display_name,omitempty"`
-	Email               string              `yaml:"email,omitempty"`
-	EmailAliases        []string            `yaml:"email_aliases,omitempty"`
-	EmployeeID          string              `yaml:"employee_id,omitempty"`
-	EmployeeType        string              `yaml:"employee_type,omitempty"`
-	FirstName           string              `yaml:"first_name,omitempty"`
-	Info                string              `yaml:"info,omitempty"`
-	Initials            string              `yaml:"initials,omitempty"`
-	IPPhone             string              `yaml:"ip_phone,omitempty"`
-	LastName            string              `yaml:"last_name,omitempty"`
-	Login               string              `yaml:"login,omitempty"`
-	ManagedObjects      []string            `yaml:"managed_objects,omitempty"`
-	Manager             string              `yaml:"manager,omitempty"`
-	MemberOf            []string            `yaml:"member_of,omitempty"`
-	Mobile              string              `yaml:"mobile,omitempty"`
-	MSECoManagedObjects []string            `yaml:"mse_co_managed_objects,omitempty"`
-	NTID                string              `yaml:"ntid,omitempty"`
-	ObjectCategory      string              `yaml:"object_category,omitempty"`
-	ObjectClass         []string            `yaml:"object_class,omitempty"`
-	Pager               string              `yaml:"pager,omitempty"`
-	PostalCode          string              `yaml:"postal_code,omitempty"`
-	PostOfficeBox       string              `yaml:"post_office_box,omitempty"`
-	ProxyAddresses      []string            `yaml:"proxy_addresses,omitempty"`
-	SAMAccountName      string              `yaml:"sam_account_name,omitempty"`
-	SAMAccountType      string              `yaml:"sam_account_type,omitempty"`
-	State               string              `yaml:"state,omitempty"`
-	StreetAddress       string              `yaml:"street_address,omitempty"`
-	TelephoneNumber     string              `yaml:"telephone_number,omitempty"`
-	ThumbnailPhoto      []byte              `yaml:"-"`
-	Title               string              `yaml:"title,omitempty"`
-	Unknown             map[string][]string `yaml:"unknown_fields"`
-}
-
-func (e *Employee) FindByEmail(email string) *Employee {
-	if nil == e {
-		return nil
-	}
-	// Normalize to all lowercase once
-	return e.findByEmail(strings.ToLower(email))
-}
-
-func (e *Employee) findByEmail(email string) *Employee {
-	if e.Email == email {
-		return e
-	}
-
-	for _, alias := range e.EmailAliases {
-		if email == alias {
-			return e
-		}
-	}
-
-	for _, directs := range e.Directs {
-		found := directs.findByEmail(email)
-		if found != nil {
-			return found
-		}
-	}
-
-	return nil
-}
-
-func (e *Employee) FindByNTID(ntid string) *Employee {
-	if nil == e {
-		return nil
-	}
-	// Normalize to all lowercase once
-	return e.findByNTID(strings.ToLower(ntid))
-}
-
-func (e *Employee) findByNTID(ntid string) *Employee {
-	if e.NTID == ntid {
-		return e
-	}
-
-	for _, directs := range e.Directs {
-		found := directs.findByNTID(ntid)
-		if found != nil {
-			return found
-		}
-	}
-
-	return nil
-}
-
 type Zapper struct {
-	BaseDN     string //"DC=example,dc=com",
-	User       string
-	Password   string
-	Hostname   string // ldap.example.com
-	Port       int    // 3269
-	l          *ldap.Conn
-	Attributes []string
+	BaseDN      string //"DC=example,dc=com",
+	User        string
+	Password    string
+	Hostname    string // ldap.example.com
+	Port        int    // 3269
+	TLSConfig   *tls.Config
+	l           *ldap.Conn
+	personCache map[ldapCacheKey]*ldap.Entry
+	attribCache map[string][]string
+}
+
+type ldapCacheKey struct {
+	objType string
+	dn      string
+}
+
+func NewZapper(BaseDN string, l *ldap.Conn) *Zapper {
+	z := &Zapper{
+		BaseDN: BaseDN,
+		l:      l,
+	}
+
+	return z
 }
 
 func (z *Zapper) Connect() error {
@@ -176,9 +61,8 @@ func (z *Zapper) Connect() error {
 	l, err := ldap.DialTLS(
 		"tcp",
 		fmt.Sprintf("%s:%d", z.Hostname, z.Port),
-		&tls.Config{
-			InsecureSkipVerify: true,
-		})
+		z.TLSConfig,
+	)
 	if err != nil {
 		return err
 	}
@@ -190,6 +74,8 @@ func (z *Zapper) Connect() error {
 	}
 
 	z.l = l
+	z.personCache = make(map[ldapCacheKey]*ldap.Entry)
+	z.attribCache = make(map[string][]string)
 
 	return nil
 }
@@ -214,7 +100,6 @@ func (z *Zapper) Find(filter string) (string, error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       filter,
-		Attributes:   z.Attributes,
 	}
 
 	res, err := z.l.Search(req)
@@ -231,6 +116,10 @@ func (z *Zapper) Find(filter string) (string, error) {
 	}
 
 	return "", fmt.Errorf("Too many matching responses.")
+}
+
+func (z *Zapper) SeeFull(dn string) (*ldap.Entry, error) {
+	return z.getDN(dn, []string{})
 }
 
 func (z *Zapper) getDN(dn string, attribs []string) (*ldap.Entry, error) {
@@ -259,7 +148,7 @@ func (z *Zapper) getDN(dn string, attribs []string) (*ldap.Entry, error) {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       fmt.Sprintf("(&(objectClass=user)(cn=%s))", ldap.EscapeFilter(cn)),
-		Attributes:   attribs, //z.Attributes,
+		Attributes:   attribs,
 	}
 
 	res, err := z.l.Search(req)
@@ -278,42 +167,6 @@ func (z *Zapper) getDN(dn string, attribs []string) (*ldap.Entry, error) {
 	return nil, fmt.Errorf("Too many matching responses.")
 }
 
-func getAttrib(s string) string {
-	items := strings.Split(s, ",")
-	return items[0]
-}
-
-func getDepth(s string) (int, error) {
-	items := strings.Split(s, ",")
-	if len(items) > 1 {
-		fmt.Printf("len(items): %d\n", len(items))
-		for i := 1; i < len(items); i++ {
-			item := items[i]
-			fmt.Println(item)
-			if strings.HasPrefix(item, "depth") {
-				params := strings.Split(item, "=")
-				if len(params) == 2 {
-					d, err := strconv.Atoi(strings.TrimSpace(params[1]))
-					if err != nil {
-						return 0, err
-					}
-					if d < 0 {
-						d = -1
-					}
-				}
-				return 0, fmt.Errorf("Invalid depth arguments: '%s'\n", s)
-			}
-		}
-	}
-
-	return -1, nil
-}
-
-type ldapCacheKey struct {
-	objType string
-	dn      string
-}
-
 func (z *Zapper) Populate(dn string, depth int, obj interface{}) error {
 	rv := reflect.ValueOf(obj)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
@@ -327,16 +180,14 @@ func (z *Zapper) Populate(dn string, depth int, obj interface{}) error {
 	// We know we have a pointer to a struct
 	rv = reflect.ValueOf(obj).Elem()
 
-	personCache := make(map[ldapCacheKey]*ldap.Entry)
-	attribCache := make(map[string][]string)
-
-	return z.populate(dn, depth, rv, personCache, attribCache)
+	return z.populate(dn, depth, rv)
 }
 
-func (z *Zapper) populate(dn string, depth int, rv reflect.Value, personCache map[ldapCacheKey]*ldap.Entry, attribCache map[string][]string) error {
+func (z *Zapper) getAttribs(rv reflect.Value) []string {
 	baseType := rv.Type().String()
+
 	// Map fields to the strings
-	attribs, found := attribCache[baseType]
+	attribs, found := z.attribCache[baseType]
 	if !found {
 		for i := 0; i < rv.NumField(); i++ {
 			tag, specified := rv.Type().Field(i).Tag.Lookup("ldap")
@@ -347,122 +198,141 @@ func (z *Zapper) populate(dn string, depth int, rv reflect.Value, personCache ma
 				}
 			}
 		}
+		z.attribCache[baseType] = attribs
 	}
 
-	for i := 0; i < rv.NumField(); i++ {
-		fmt.Printf("%s .. %s is a %s\n", rv.Type(), rv.Type().Field(i).Name, rv.Type().Field(i).Type.String()) //reflect.TypeOf(obj))
-	}
+	return attribs
+}
 
+func (z *Zapper) getPerson(dn string, rv reflect.Value) (*ldap.Entry, error) {
+	baseType := rv.Type().String()
+	attribs := z.getAttribs(rv)
 	key := ldapCacheKey{objType: baseType, dn: dn}
 	var err error
-	who, found := personCache[key]
+	who, found := z.personCache[key]
 	if !found {
 		who, err = z.getDN(dn, attribs)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		personCache[key] = who
+		z.personCache[key] = who
 	}
+
+	return who, nil
+}
+
+func (z *Zapper) populate(dn string, depth int, rv reflect.Value) error {
+	who, err := z.getPerson(dn, rv)
 
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Field(i)
-		//baseType := rv.Type().String()
-		tags, _ := rv.Type().Field(i).Tag.Lookup("ldap")
-		tag := getAttrib(tags)
+		ft := field.Type()
+		tag, _ := rv.Type().Field(i).Tag.Lookup("ldap")
 		if tag != "" {
-			for _, attribute := range who.Attributes {
-				if tag == attribute.Name {
+			for _, a := range who.Attributes {
+				if tag == a.Name {
 					switch {
-					// Normal single string to single string, or a mistake & an error
-					case field.Kind() == reflect.String && len(attribute.Values) <= 1:
-						field.Set(reflect.ValueOf(attribute.Values[0]))
-					case field.Kind() == reflect.String && len(attribute.Values) > 1:
-						return fmt.Errorf("Too many values were returned for a string: '%s'", tag)
+					// Normal single string to single string, or truncate list to first found.
+					case field.Kind() == reflect.String:
+						if 0 < len(a.Values) {
+							field.Set(reflect.ValueOf(a.Values[0]))
+						}
 
-					// Normal array of things to a []string
-					case field.Kind() == reflect.Slice && field.Type().Elem().Kind() == reflect.String:
-						field.Set(reflect.ValueOf(attribute.Values))
+					// Normal slice of things to a []string
+					case field.Kind() == reflect.Slice && ft.Elem().Kind() == reflect.String:
+						field.Set(reflect.ValueOf(a.Values))
 
-					// If you have asked for the manager to be resolved we'll do that
-					case tag == AttrManager, tag == AttrDirectReports:
+					// Normal array of things to a [5]string
+					case field.Kind() == reflect.Array && ft.Elem().Kind() == reflect.String:
+						least := field.Len()
+						if len(a.Values) < least {
+							least = len(a.Values)
+						}
+						for j := 0; j < least; j++ {
+							field.Index(j).Set(reflect.ValueOf(a.Values[j]))
+						}
+
+					// If you have asked for the manager or directReports to be
+					// resolved then do that
+					case tag == attrManager, tag == attrDirectReports:
 						if depth < 0 {
 							continue
 						}
 						nextDepth := -1
-						if tag == AttrDirectReports {
+						if tag == attrDirectReports {
 							nextDepth = depth - 1
 						}
-						kind := rv.Type().Field(i).Type.Kind()
-						fmt.Printf("Kind: %s\n", kind.String())
+						kind := ft.Kind()
 						if kind == reflect.Ptr {
-							mgr := reflect.New(rv.Type().Field(i).Type.Elem())
-							mgrDN := attribute.Values[0]
+							coworker := reflect.New(ft.Elem())
+							coworkerDN := a.Values[0]
 
-							err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+							err = z.populate(coworkerDN, nextDepth, reflect.ValueOf(coworker.Interface()).Elem())
 							if err != nil {
 								return err
 							}
-							field.Set(mgr)
+							field.Set(coworker)
 						} else if kind == reflect.Struct {
-							mgr := reflect.New(rv.Type().Field(i).Type)
-							mgrDN := attribute.Values[0]
+							coworker := reflect.New(ft)
+							coworkerDN := a.Values[0]
 
-							err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+							err = z.populate(coworkerDN, nextDepth, reflect.ValueOf(coworker.Interface()).Elem())
 							if err != nil {
 								return err
 							}
-							field.Set(mgr.Elem())
+							field.Set(coworker.Elem())
 						} else if kind == reflect.Array {
-							if rv.Type().Field(i).Type.Elem().Kind() == reflect.Ptr {
-								mgr := reflect.New(rv.Type().Field(i).Type.Elem().Elem())
-								mgrDN := attribute.Values[0]
+							if ft.Elem().Kind() == reflect.Ptr && ft.Elem().Elem().Kind() == reflect.Struct {
+								coworker := reflect.New(ft.Elem().Elem())
+								coworkerDN := a.Values[0]
 
-								err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+								err = z.populate(coworkerDN, nextDepth, reflect.ValueOf(coworker.Interface()).Elem())
 								if err != nil {
 									return err
 								}
-								field.Index(0).Set(mgr)
-							} else if rv.Type().Field(i).Type.Elem().Kind() == reflect.Struct {
+								field.Index(0).Set(coworker)
+							} else if ft.Elem().Kind() == reflect.Struct {
 								least := field.Len()
-								if len(attribute.Values) < least {
-									least = len(attribute.Values)
+								if len(a.Values) < least {
+									least = len(a.Values)
 								}
 								for j := 0; j < least; j++ {
-									mgr := reflect.New(rv.Type().Field(i).Type.Elem())
-									mgrDN := attribute.Values[j]
+									coworkerDN := a.Values[j]
 
-									err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+									err = z.populate(coworkerDN, nextDepth, field.Index(j))
 									if err != nil {
 										return err
 									}
-									field.Index(j).Set(mgr.Elem())
 								}
 							} else {
+								panic(fmt.Sprintf("Incompatible type: %s.%s", rv.Type().String(), field.String()))
 							}
 						} else if kind == reflect.Slice {
-							if rv.Type().Field(i).Type.Elem().Kind() == reflect.Ptr {
-								for _, mgrDN := range attribute.Values {
-									mgr := reflect.New(rv.Type().Field(i).Type.Elem().Elem())
+							if ft.Elem().Kind() == reflect.Ptr && ft.Elem().Elem().Kind() == reflect.Struct {
+								for _, coworkerDN := range a.Values {
+									coworker := reflect.New(ft.Elem().Elem())
 
-									err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+									err = z.populate(coworkerDN, nextDepth, reflect.ValueOf(coworker.Interface()).Elem())
 									if err != nil {
 										return err
 									}
-									field.Set(reflect.Append(field, mgr))
+									field.Set(reflect.Append(field, coworker))
 								}
-							} else if rv.Type().Field(i).Type.Elem().Kind() == reflect.Struct {
-								for _, mgrDN := range attribute.Values {
-									mgr := reflect.New(rv.Type().Field(i).Type.Elem())
+							} else if ft.Elem().Kind() == reflect.Struct {
+								for _, coworkerDN := range a.Values {
+									coworker := reflect.New(ft.Elem())
 
-									err = z.populate(mgrDN, nextDepth, reflect.ValueOf(mgr.Interface()).Elem(), personCache, attribCache)
+									err = z.populate(coworkerDN, nextDepth, reflect.ValueOf(coworker.Interface()).Elem())
 									if err != nil {
 										return err
 									}
-									field.Set(reflect.Append(field, mgr.Elem()))
+									field.Set(reflect.Append(field, coworker.Elem()))
 								}
 							} else {
+								panic(fmt.Sprintf("Incompatible type: %s.%s", rv.Type().String(), field.String()))
 							}
 						} else {
+							panic(fmt.Sprintf("Incompatible type: %s.%s", rv.Type().String(), field.String()))
 						}
 
 					default:
@@ -473,137 +343,4 @@ func (z *Zapper) populate(dn string, depth int, rv reflect.Value, personCache ma
 		}
 	}
 	return nil
-}
-
-func (z *Zapper) WalkTree(dn string) (*Employee, error) {
-	return z.processNode(dn, true)
-}
-
-func (z *Zapper) processNode(dn string, directs bool) (*Employee, error) {
-	who, err := z.getDN(dn, z.Attributes)
-	if err != nil {
-		fmt.Printf("Error: %s\n", dn)
-		return nil, err
-	}
-
-	e := Employee{}
-	e.Unknown = make(map[string][]string)
-
-	for _, attribute := range who.Attributes {
-		switch attribute.Name {
-		case AttrCommonName, "name":
-			e.Name = attribute.Values[0]
-		case AttrCompany:
-			e.Company = attribute.Values[0]
-		case AttrCity:
-			e.City = attribute.Values[0]
-		case AttrCountry:
-			e.Country = attribute.Values[0]
-		case AttrCountryCode:
-			e.CountryCode = attribute.Values[0]
-		case AttrDepartment:
-			e.Department = attribute.Values[0]
-		case AttrDescription:
-			e.Description = attribute.Values[0]
-		case AttrDirectReports:
-			if directs {
-				for _, direct := range attribute.Values {
-					tmp, err := z.processNode(direct, directs)
-					if err != nil {
-						fmt.Printf("Error: %s\n", direct)
-						return nil, err
-					}
-
-					e.Directs = append(e.Directs, tmp)
-				}
-			}
-		case AttrDisplayName:
-			e.DisplayName = attribute.Values[0]
-		case AttrEmail:
-			// Make email addresses all lowercase to help normalize a bit
-			e.Email = strings.ToLower(attribute.Values[0])
-		case AttrEmployeeID, "employeeID":
-			e.EmployeeID = attribute.Values[0]
-		case AttrEmployeeType:
-			e.EmployeeType = attribute.Values[0]
-
-			switch e.EmployeeType {
-			case "E", "Employee", "Emp":
-				e.EmployeeType = "employee"
-			case "C", "Contractor", "Cont":
-				e.EmployeeType = "contractor"
-			case "S", "Service User", "service_user":
-				e.EmployeeType = "service user"
-			case "R", "Reserved User", "Reserved", "reserved":
-				e.EmployeeType = "reserved user"
-			default:
-			}
-		case AttrGivenName:
-			e.FirstName = attribute.Values[0]
-		case AttrInfo:
-			e.Info = attribute.Values[0]
-		case AttrInitials:
-			e.Initials = attribute.Values[0]
-		case AttrIPPhone:
-			e.IPPhone = attribute.Values[0]
-		case AttrLastName:
-			e.LastName = attribute.Values[0]
-		case AttrMailNickname:
-			for _, alias := range attribute.Values {
-				e.EmailAliases = append(e.EmailAliases, strings.ToLower(alias))
-			}
-		case AttrManagedObjects:
-			e.ManagedObjects = attribute.Values
-		case AttrManager:
-			e.Manager = attribute.Values[0]
-		case AttrMemberOf:
-			e.MemberOf = attribute.Values
-		case AttrMobile:
-			e.Mobile = attribute.Values[0]
-		case AttrMsExchCoManagedObjectsBL:
-			e.MSECoManagedObjects = attribute.Values
-		case AttrObjectCategory:
-			e.ObjectCategory = attribute.Values[0]
-		case AttrObjectClass:
-			e.ObjectClass = attribute.Values
-		case AttrPager:
-			e.Pager = attribute.Values[0]
-		case AttrPostalCode:
-			e.PostalCode = attribute.Values[0]
-		case AttrPostOfficeBox:
-			e.PostOfficeBox = attribute.Values[0]
-		case AttrProxyAddresses:
-			e.ProxyAddresses = attribute.Values
-		case AttrSAMAccountName:
-			// Generally the NTID is case insensitive so make it lowercase
-			e.NTID = strings.ToLower(attribute.Values[0])
-
-			// Leave this value to match the original in case it's important
-			e.SAMAccountName = attribute.Values[0]
-		case AttrSAMAccountType:
-			e.SAMAccountType = attribute.Values[0]
-		case AttrState:
-			e.State = attribute.Values[0]
-		case AttrStreetAddress:
-			e.StreetAddress = attribute.Values[0]
-		case AttrTelephoneNumber:
-			e.TelephoneNumber = attribute.Values[0]
-		case AttrThumbnailPhoto:
-			e.ThumbnailPhoto = attribute.ByteValues[0]
-		case AttrTitle:
-			e.Title = attribute.Values[0]
-		case AttrUserPrincipalName:
-			e.Login = attribute.Values[0]
-
-		default:
-			/*
-				e.Unknown[attribute.Name] = attribute.Values
-					for i, _ := range attribute.Values {
-						fmt.Printf("'%s' = [%d] '%s'\n", attribute.Name, i, attribute.Values[i])
-					}
-			*/
-		}
-	}
-
-	return &e, nil
 }
