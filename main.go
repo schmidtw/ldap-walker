@@ -17,13 +17,21 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strconv"
 
+	"github.com/kr/pretty"
 	"github.com/schmidtw/ldap-walker/zapper"
-	"gopkg.in/yaml.v2"
 )
+
+type Foo struct {
+	Directs []*Foo `ldap:"directReports"`
+	Manager *Foo   `ldap:"manager"`
+	Type    string `ldap:"employeeType"`
+	Name    string `ldap:"displayName"`
+}
 
 func main() {
 
@@ -39,16 +47,9 @@ func main() {
 		Password: os.Getenv("ZAPPER_PASSWORD"),
 		Hostname: os.Getenv("ZAPPER_HOSTNAME"),
 		Port:     port,
-		// Generally, keep this list small to speed things up for larger trees
-		Attributes: []string{
-			zapper.AttrDirectReports, // Needed to walk the tree
-			zapper.AttrDisplayName,   // Everything else is really optional
-			zapper.AttrTitle,
-			zapper.AttrNTID,
-			zapper.AttrEmployeeType,
-			zapper.AttrEmail,
-			zapper.AttrMailNickname,
-			zapper.AttrUserPrincipalName,
+		TLSConfig: &tls.Config{
+			// Show how to ignore hostname validation
+			InsecureSkipVerify: true,
 		},
 	}
 
@@ -72,24 +73,11 @@ func main() {
 		return
 	}
 
-	emp, err := z.WalkTree(who)
+	f := &Foo{}
+	err = z.Populate(who, 40, f)
 	if err != nil {
 		panic(err)
 	}
 
-	d, err := yaml.Marshal(&emp)
-	if err != nil {
-		panic(err)
-	}
-
-	if 2 < len(os.Args) {
-		file, err := os.Create(os.Args[2])
-		if err != nil {
-			panic(err)
-		}
-		defer file.Close()
-		file.Write(d)
-	} else {
-		fmt.Printf("%s\n", string(d))
-	}
+	pretty.Print(f)
 }
