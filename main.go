@@ -26,30 +26,11 @@ import (
 	"github.com/schmidtw/ldap-walker/zapper"
 )
 
-type Mgr struct {
-	Person string `ldap:"sAMAccountName"`
-}
-
-type Mgr2 struct {
-	Person string
-}
-
 type Foo struct {
-	Person [1]string `ldap:"sAMAccountName"`
-	Other  string
-	//Dogs   string `ldap:"dogs"`
-	//DirectDNs []string `ldap:"directReports"`
-	ManagerDN string   `ldap:"manager"`
-	Manager   Mgr      `ldap:"manager"`
-	Manager1  *Foo     `ldap:"manager"`
-	Managers  []Foo    `ldap:"manager"`
-	Managers1 []*Foo   `ldap:"manager"`
-	Managers2 [1]*Foo  `ldap:"manager"`
-	Managers3 [1]Mgr   `ldap:"manager"`
-	Managers4 [0]Mgr2  `ldap:"manager"`
-	Keys      []string `ldap:"?"`
-	//Directs  []Foo `ldap:"directReports"`
-	//Directs1 []Mgr `ldap:"directReports"`
+	Directs []*Foo `ldap:"directReports"`
+	Manager *Foo   `ldap:"manager"`
+	Type    string `ldap:"employeeType"`
+	Name    string `ldap:"displayName"`
 }
 
 func main() {
@@ -67,21 +48,9 @@ func main() {
 		Hostname: os.Getenv("ZAPPER_HOSTNAME"),
 		Port:     port,
 		TLSConfig: &tls.Config{
+			// Show how to ignore hostname validation
 			InsecureSkipVerify: true,
 		},
-		// Generally, keep this list small to speed things up for larger trees
-		/*
-			Attributes: []string{
-				zapper.AttrDirectReports, // Needed to walk the tree
-				zapper.AttrDisplayName,   // Everything else is really optional
-				zapper.AttrTitle,
-				zapper.AttrNTID,
-				zapper.AttrEmployeeType,
-				zapper.AttrEmail,
-				zapper.AttrMailNickname,
-				zapper.AttrUserPrincipalName,
-			},
-		*/
 	}
 
 	err = z.Connect()
@@ -104,40 +73,11 @@ func main() {
 		return
 	}
 
-	person, err := z.SeeFull(who)
-	pretty.Print(person)
-
-	f := Foo{}
-	err = z.Populate(who, 4, &f)
+	f := &Foo{}
+	err = z.Populate(who, 40, f)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("\n\nFoo:\n")
 	pretty.Print(f)
-	fmt.Printf("\n\n")
-	/*
-		emp, err := z.WalkTree(who)
-		if err != nil {
-			panic(err)
-		}
-
-		emp.Directs = []*zapper.Employee{}
-
-		d, err := yaml.Marshal(&emp)
-		if err != nil {
-			panic(err)
-		}
-
-		if 2 < len(os.Args) {
-			file, err := os.Create(os.Args[2])
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-			file.Write(d)
-		} else {
-			fmt.Printf("%s\n", string(d))
-		}
-	*/
 }
